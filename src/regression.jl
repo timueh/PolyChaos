@@ -1,4 +1,6 @@
-using LinearAlgebra
+using LinearAlgebra #TODO: thin out dependency, move to Package file
+
+export leastSquares
 
 # Ordinary least-squares regression
 function leastSquares(Φ::AbstractMatrix{<:Real}, Y::AbstractVector{<:Real})
@@ -9,7 +11,6 @@ function leastSquares(Φ::AbstractMatrix{<:Real}, Y::AbstractVector{<:Real})
     coefficients = zeros(size(Y))
 
     rcond = 1/cond(Φ) # reciproce of condition number
-    println("Matrix condition number:", cond(Φ), " reciprocal: ", rcond) # Debugging
     
     if rcond > 1e-6
         ## Fastest, but least accurate (squares condition number)
@@ -21,8 +22,8 @@ function leastSquares(Φ::AbstractMatrix{<:Real}, Y::AbstractVector{<:Real})
         coefficients = Φ \ Y
 
     else
-        ## Slowest, but most precision, for very ill-condiioned matrices. For better conditioned matrices it is not as good as other methods. 
-        @warn("Matrix condition number is really high ($rcond). Results can become inaccurate.")
+        ## Slowest, but best precision for very ill-conditioned matrices. For better conditioned matrices it is not as good as other methods. 
+        @warn("Matrix condition number is really high. Results can become inaccurate.")
         coefficients = pinv(Φ) * Y # TODO: calibrate tolerances of pinv
     end
     
