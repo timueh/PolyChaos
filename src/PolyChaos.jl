@@ -28,4 +28,9 @@ include("tensor.jl")
 include("show.jl")
 include("polynomial_chaos.jl")
 
+# Currently under development
+include("regression.jl")
+# include("adaptive_base.jl")
+
+
 end
