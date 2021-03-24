@@ -12,3 +12,6 @@ docs/build
 Manifest.toml
 test/Manifest.toml
 docs/Manifest.toml
+
+# Dev
+.vscode/
