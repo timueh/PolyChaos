@@ -31,6 +31,7 @@ include("polynomial_chaos.jl")
 # Currently under development
 include("regression.jl")
 # include("adaptive_base.jl")
+include("error_estimation.jl")
 
 
 end
