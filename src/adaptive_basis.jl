@@ -1,6 +1,5 @@
 # TODO: Overfitting: strategy for overfitting
 # TODO: multiple dispatch for bases on arbitrary weight functions
-# TODO: no use of abstract types in ols model
 
 using LinearAlgebra: diag
 include("error_estimation.jl")
@@ -54,15 +53,15 @@ end
 
 # Struct, containing all relevant data for OLS regression for PCE estimation
 # TODO: no abstract types
-mutable struct OLSModel
-    op::AbstractOrthoPoly   # Chosen orthogonal basis FUTURE: Sparse Ortho Poly
+mutable struct OLSModel{T<:AbstractOrthoPoly}
+    op::T   # Chosen orthogonal basis FUTURE: Sparse Ortho Poly
     modelFun::Function  # Function handle for system model
     pceCoeffs::Array{Float64,1}
     error::Float64      # Error of PCE model
     # Y::Vector{Float64}  # Model evaluaions
     # Φ::Matrix{Float64}  # Moment matrix
     function OLSModel(op::AbstractOrthoPoly, modelFun::Function)
-        new(op, modelFun, [], Inf)
+        new{typeof(op)}(op, modelFun, [], Inf)
     end
 end
 
