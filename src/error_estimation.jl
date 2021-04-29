@@ -54,7 +54,7 @@ function looError(Y, Φ, pceCoeffs)
     Y_Pce = Φ * pceCoeffs
 
     # h-factor for validation sets
-    phiMphi = Φ * inv(Φ' * Φ) * Φ'
+    phiMphi = Φ * inv(Φ' * Φ) * Φ' #TODO: fix conditioning
     N = size(phiMphi, 1)
     h = ones(N) - diag(phiMphi)
     
