@@ -20,11 +20,10 @@ function empError(Y, Φ, pceCoeffs; adjusted = false)
     # Variance of sampling evaluation (true model)
     meanY = mean(Y)
     varY = 1/(n-1) * sum( (Y[i] - meanY)^2 for i in 1:n )
-    println("VarY = ", varY)
 
     # Empirical error
     empError = 1/n * sum( (Y[i] - Y_Pce[i])^2 for i in 1:n )
-    println("Empirical Error = ", empError)
+    # println("Empirical Error = ", empError)
     
     # Normalize with variance
     if varY == 0

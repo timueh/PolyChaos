@@ -10,7 +10,7 @@ function leastSquares(Φ::AbstractMatrix{<:Real}, Y::AbstractVector{<:Real})
     
     coefficients = zeros(size(Y))
 
-    rcond = 1/cond(Φ) # reciproce of condition number
+    rcond = 1/cond(Φ) # reciproce of condition number #TODO: either use method for inverse directly or use normal cond
     
     if rcond > 1e-6
         ## Fastest, but least accurate (squares condition number)

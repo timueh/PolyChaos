@@ -1,8 +1,9 @@
 # TODO: Overfitting: strategy for overfitting
 # TODO: multiple dispatch for bases on arbitrary weight functions
 
-using LinearAlgebra: diag
+using LinearAlgebra: diag, cond
 include("error_estimation.jl")
+
 
 # Univariate adaptive basis algo
 # Arguments:
@@ -12,7 +13,7 @@ include("error_estimation.jl")
 #   * pceModel: struct storing all relevant pce information
 #   * maxDegree: maximum allowed degree of basis
 #   * ϵ: target error
-function adaptiveBasis(opFun::Function, modelFun::Function, pceFun::Function, pceModel; maxDegree::Int = 20, ϵ = 1e-10)
+function adaptiveBasis(opFun::Function, pceFun::Function, pceModel; maxDegree::Int = 20, ϵ = 1e-10)
     error = Inf     # error of current PC expansion
     error_opt = Inf    # error for optimal solution
     deg = 1         # current degree
@@ -26,6 +27,7 @@ function adaptiveBasis(opFun::Function, modelFun::Function, pceFun::Function, pc
         
         # 2. Compute new PCE coefficients and error for current basis
         # computePCE(PCEmodel, true)
+        modelFun = pceModel.modelFun
         pce, error = pceFun(op_current, modelFun)
 
         # 3. Check if result increases, store best, check for overfitting
@@ -52,7 +54,6 @@ end
 
 
 # Struct, containing all relevant data for OLS regression for PCE estimation
-# TODO: no abstract types
 mutable struct OLSModel{T<:AbstractOrthoPoly}
     op::T   # Chosen orthogonal basis FUTURE: Sparse Ortho Poly
     modelFun::Function  # Function handle for system model
@@ -68,7 +69,7 @@ end
 
 # Compute the PCE coefficients using OLS regression
 # TODO: sample function
-# TODO: (number of samples)
+# TODO: determine good number of samples (-> maybe move sampling outside)
 # function computePCE(olsModel::OLSModel, compError)
 function computePceOls(op::AbstractOrthoPoly, modelFun::Function; compError=true)
     deg = op.deg
@@ -117,8 +118,133 @@ op1 = op(1)
 olsModel = OLSModel(op1, model)
 
 # Compute adaptive basis with a regression approach
-adaptiveBasis(op, model, pceFun, olsModel)
+adaptiveBasis(op, pceFun, olsModel)
 
+
+
+function computeED(nSamples, op::AbstractOrthoPoly)
+    X = sampleMeasure(nSamples, op)
+end
+
+
+# Compute a sparse basis for the provided pce model and parameters
+# Parameters:
+#   * op: The full candidate orthogonal basis
+function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .8, pMax = 10, jMax = 6)
+    # Parameter specification
+    pMax = min(op.deg, pMax)
+    COND = 1e4 # Maximum allowed matrix condition number (see Blatman2010)
+    α = 0.001 # (see Blatman2010)
+    ϵ = α * (1 - Q²tgt) # Error threshold of coefficients
+
+    # 1. Build initial ED, calc Y
+    sampleSize = pMax * 2 # TODO: How to detemrine?
+    X = computeED(sampleSize, op)
+    Y = modelFun.(X) # This is the most expensive part
+    
+    restart = true
+    # Outer loop: Iterate on experimental design
+    while restart
+        restart = false
+        
+        # 2. Initialize
+        p = 0
+        Ap = [0] # Zero element
+        Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap ]
+        pce = leastSquares(Φ, Y)
+        R²0 = 1 - empError(Y, Φ, pce)
+        println("R²0: $R²0")
+        Q²0 = 1 - looError(Y, Φ, pce)
+
+        # Main loop: Iterate max degree p
+        while Q²0 ≤ Q²tgt && p ≤ pMax
+            p += 1
+            j = 0
+            Q² = 0
+            
+            # Iterate max interactions j
+            while Q² ≤ Q²tgt && j < jMax
+                j += 1
+                J = [] # Temporary store potential new basis elements
+                candidates = [p] # FUTURE: this needs to capture all current multi indices. ALso need to change from indices to objects (?)
+
+                # Forward step: compute R² for all candidate terms and keep the relevant ones
+                for a in candidates
+                    A = Ap ∪ p
+                    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in A]
+                    pce = leastSquares(Φ, Y)
+                    R² = 1 - empError(Y, Φ, pce) # Only need R² error here "due to more efficiency" (Blatman 2010)
+                    println("R² (p=$p, j=$j): ", R²)
+                    ΔR² = R² - R²0
+                    # println("ΔR²: ", ΔR²)
+                    if ΔR² ≥ ϵ
+                        J = J ∪ a
+                    end
+                end
+                println("Candidates J: $J")
+
+                # FUTURE: Sort Jp and ΦJ according to ΔR²
+                # J = sort(J)
+                # R = []
+
+                # Conditioning Check: If resulting enriched basis does not yield a well-conditioned moments matrix, we have to restart
+                # for a in J
+                A = Ap ∪ J
+                Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in A]
+                # check Φ
+                if cond(Φ) > COND 
+                    # Increase experimental design and restart computations
+                    restart = true
+                    sampleSize *= 2 # TODO: build properly
+                    Y = computeED(sampleSize, op) #TODO: Reuse old ED data, this part is very expensive!
+                    # break
+                else
+                    Ap_new = Ap ∪ R
+                    # R = R ∪ a
+                end
+                # end
+
+                Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap_new]
+                pce = leastSquares(Φ, Y)
+                R²0 = 1 - empError(Y, Φ, pce)
+                Q²0 = 1 - looError(Y, Φ, pce)
+                
+                
+                # Backward step: Remove new polynomials one by one and compute the effect on Q²
+                if !restart 
+                    Del = []
+                    for a in Ap_new
+                        A = filter!(e->e≠a,Ap_new)
+                        # New candiadte basis -> compute new determination coefficients
+                        Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in A]
+                        pce = leastSquares(Φ, Y)
+                        R² = 1 - empError(Y, Φ, pce)
+                        Q² = 1 - looError(Y, Φ, pce)
+
+                        ΔR² = R²0 - R²
+
+                        # If decrease in accuracy is too small, throw polynomial away
+                        if ΔR² ≤ ϵ
+                            Del ∪ a
+                        end
+                    end
+
+                    # Update basis and compute errors for next iteration
+                    Ap = filter!(e->e∉Del, Ap_new)
+                    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in A]
+                    pce = leastSquares(Φ, Y)
+                    R²0 = 1 - empError(Y, Φ, pce)
+                    Q²0 = 1 - looError(Y, Φ, pce)
+                end
+
+            end
+    
+        end
+    
+    end
+    
+    return #TODO
+end
 
 
 #################################
@@ -157,6 +283,7 @@ adaptiveBasis(op, model, pceFun, olsModel)
 #     error::Float64
 #     # TODO: sample function
 #     # TODO: (number of samples)
+
     
 #     # inner constructor    
 #     function OLSModel(op::AbstractOrthoPoly, sysFun::Function, errorFun::Function; compError = true)
