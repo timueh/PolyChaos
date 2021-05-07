@@ -118,7 +118,7 @@ op1 = op(1)
 olsModel = OLSModel(op1, model)
 
 # Compute adaptive basis with a regression approach
-adaptiveBasis(op, pceFun, olsModel)
+# adaptiveBasis(op, pceFun, olsModel)
 
 
 
@@ -133,6 +133,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
     α = 0.001                   # Tuning parameter (see Blatman2010)
     ϵ = α * (1 - Q²tgt)         # Error threshold of coefficients
 
+
     # Initilaize basis and determination coefficients
     p = 0
     Ap = [0]
@@ -144,6 +145,16 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
     X = sampleMeasure(sampleSize, op)
     Y = modelFun.(X) # This is the most expensive part
     
+    ###
+    # Comparison to full basis with max degree 4
+    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in 0:4]
+    pce = leastSquares(Φ, Y)
+    R²0 = 1 - empError(Y, Φ, pce)
+    Q²0 = 1 - looError(Y, Φ, pce)
+    println("R²0: ", R²0)
+    println("Q²0: ", Q²0)
+    ###
+
     restart = true
     # Outer loop: Iterate on experimental design
     while restart
@@ -157,6 +168,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
         R² = 1 - empError(Y, Φ, pce)
         println("R²: $R²")
         Q² = 1 - looError(Y, Φ, pce)
+        println("Q²: $Q²")
 
         # Main loop: Iterate max degree p
         while Q² ≤ Q²tgt && p ≤ pMax
@@ -231,6 +243,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                     pce = leastSquares(Φ, Y)
                     R² = 1 - empError(Y, Φ, pce)
                     Q² = 1 - looError(Y, Φ, pce)
+                    println("Q² (p=$p, j=$j): ", Q²)
                 end
 
             end
@@ -245,7 +258,29 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
         println("Computation reached targen accuracy with Q² = $(Q²) and max degree $p")
     end
 
-    return Ap, Q², R², p#TODO
+    return Ap, p, Q², R²
+end
+
+function testFun(deg, modelFun)
+    op = GaussOrthoPoly(deg)
+
+    sampleSize = deg * 2 # TODO: How to determine?
+    X = sampleMeasure(sampleSize, op)
+    println("X: ", X)
+    Y = modelFun.(X) # This is the most expensive part
+    println("Y: ", Y)
+    
+    # Comparison to full basis with max degree 4
+    # Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in 0:deg]
+    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in 0:0]
+    println("Φ:", Φ)
+    pce = leastSquares(Φ, Y)
+    println("pce: ", pce)
+    R²0 = 1 - empError(Y, Φ, pce)
+    println("R²0: ", R²0)
+    Q²0 = 1 - looError(Y, Φ, pce)
+    println("Q²0: ", Q²0)
+    ###
 end
 
 

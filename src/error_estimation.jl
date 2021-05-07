@@ -8,29 +8,24 @@ import Statistics: var
 
 # Normalized empirical error (generalization error)
 # Following Blatman2009 (Dissertation)
-function empError(Y, Φ, pceCoeffs; adjusted = false)
-    @assert size(Y, 1) == size(Φ, 1) "Inconsistent number of elements."
+function empError(Y::Vector{Float64}, Φ::Matrix{Float64}, pceCoeffs; adjusted = false)
+    @assert length(Y) > 0           "Empty results vector Y"
+    @assert length(Y) == size(Φ, 1) "Inconsistent number of elements."
     # TODO: Require column vectors
-
-    n = length(Y)
 
     # Compute PCE model response
     Y_Pce = Φ * pceCoeffs
-
+    
     # Variance of sampling evaluation (true model)
+    n = length(Y)
     meanY = mean(Y)
-    varY = 1/(n-1) * sum( (Y[i] - meanY)^2 for i in 1:n )
+    varY = n > 1 ? 1/(n-1) * sum( (Y[i] - meanY)^2 for i in 1:n ) : 0
 
     # Empirical error
     empError = 1/n * sum( (Y[i] - Y_Pce[i])^2 for i in 1:n )
-    # println("Empirical Error = ", empError)
     
     # Normalize with variance
-    if varY == 0
-        nempError = 0
-    else
-        nempError = empError / varY
-    end
+    nempError = varY == 0 ? 0.0 : empError / varY
 
 
     if adjusted
@@ -46,21 +41,30 @@ end
 
 
 # Leave-one-out cross-validation error
-function looError(Y, Φ, pceCoeffs)
-    # consistency checks
+function looError(Y::Vector{Float64}, Φ::Matrix{Float64}, pceCoeffs)
+    @assert length(Y) > 0           "Empty results vector Y"
+    @assert length(Y) == size(Φ, 1) "Inconsistent number of elements."
 
     # Compute PCE model response
     Y_Pce = Φ * pceCoeffs
 
     # h-factor for validation sets
-    phiMphi = Φ * inv(Φ' * Φ) * Φ' #TODO: fix conditioning
-    N = size(phiMphi, 1)
-    h = ones(N) - diag(phiMphi)
+    M = Φ * inv(Φ' * Φ) * Φ' #TODO: fix conditioning
+    N = size(M, 1)
+    h = ones(N) - diag(M)
     
     looError = 1/N * sum( ( (Y[i] - Y_Pce[i]) / h[i] )^2 for i in 1:N )
-    varY = var(Y)
-
-    ϵLoo =  looError / varY
     
-    return ϵLoo
+    # Variance of sampling evaluation (true model)
+    n = length(Y)
+    meanY = mean(Y)
+    varY = n > 1 ? 1/(n-1) * sum( (Y[i] - meanY)^2 for i in 1:n ) : 0
+
+    println("M: ", M)
+    println("h: ", h)
+    println("varY: ", varY)
+    println("looError: ", looError)
+
+    # Return error normalize with variance
+    varY == 0 ? 0.0 : looError / varY
 end
