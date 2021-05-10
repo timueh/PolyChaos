@@ -13,7 +13,7 @@ include("error_estimation.jl")
 #   * pceModel: struct storing all relevant pce information
 #   * maxDegree: maximum allowed degree of basis
 #   * ϵ: target error
-function adaptiveBasis(opFun::Function, pceFun::Function, pceModel; maxDegree::Int = 20, ϵ = 1e-10)
+function adaptiveBasis!(pceModel, opFun::Function, pceFun::Function; maxDegree::Int = 20, ϵ = 1e-10)
     error = Inf     # error of current PC expansion
     error_opt = Inf    # error for optimal solution
     deg = 1         # current degree
@@ -118,7 +118,7 @@ op1 = op(1)
 olsModel = OLSModel(op1, model)
 
 # Compute adaptive basis with a regression approach
-# adaptiveBasis(op, pceFun, olsModel)
+# adaptiveBasis(olsModel, op, pceFun)
 
 
 
@@ -145,15 +145,6 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
     X = sampleMeasure(sampleSize, op)
     Y = modelFun.(X) # This is the most expensive part
     
-    ###
-    # Comparison to full basis with max degree 4
-    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in 0:4]
-    pce = leastSquares(Φ, Y)
-    R²0 = 1 - empError(Y, Φ, pce)
-    Q²0 = 1 - looError(Y, Φ, pce)
-    println("R²0: ", R²0)
-    println("Q²0: ", Q²0)
-    ###
 
     restart = true
     # Outer loop: Iterate on experimental design
@@ -166,8 +157,9 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
         Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap ]
         pce = leastSquares(Φ, Y)
         R² = 1 - empError(Y, Φ, pce)
-        println("R²: $R²")
         Q² = 1 - looError(Y, Φ, pce)
+        println("Intialization:")
+        println("R²: $R²")
         println("Q²: $Q²")
 
         # Main loop: Iterate max degree p
@@ -183,7 +175,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
 
                 # Forward step: compute R² for all candidate terms and keep the relevant ones
                 for a in candidates
-                    A = Ap ∪ p
+                    A = Ap ∪ a
                     Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in A]
                     pce = leastSquares(Φ, Y)
                     R²new = 1 - empError(Y, Φ, pce) # Only need R² error here "due to more efficiency" (Blatman 2010)
@@ -196,7 +188,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                         J = J ∪ a
                     end
                 end
-                println("Candidates J: $J")
+                println("Candidates after forward step: $J")
 
                 # FUTURE: Sort Jp and ΦJ according to ΔR² <- why?
                 # J = sort(J)
@@ -212,9 +204,10 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                     sampleSize *= 2 # TODO: build properly
                     X = sampleMeasure(sampleSize, op)
                     Y = modelFun.(X) # TODO: Reuse old ED data, this part is very expensive!
+                    println("Moments matrix is ill-conditioned. Restart computation with new sample size: $sampleSize")
                 else
                 #     # If conditioning is okay, update accuracy R² for backward step
-                    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap_new]
+                    # Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap_new]
                     pce = leastSquares(Φ, Y)
                     R² = 1 - empError(Y, Φ, pce)
                 end
@@ -224,7 +217,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                 if !restart 
                     Del = [] # polynomials to be discarded
                     for a in Ap_new
-                        A = filter!(e->e≠a,Ap_new)
+                        A = filter(e->e≠a,Ap_new)
                         # New candiadte basis -> compute new determination coefficients
                         Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in A]
                         pce = leastSquares(Φ, Y)
@@ -238,7 +231,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                     end
 
                     # Update basis and compute errors for next iteration
-                    Ap = filter!(e->e∉Del, Ap_new)
+                    Ap = filter(e->e∉Del, Ap_new)
                     Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap]
                     pce = leastSquares(Φ, Y)
                     R² = 1 - empError(Y, Φ, pce)
@@ -255,16 +248,15 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
     if Q² < Q²tgt
         println("Computation reached max degree $pMax. However, accuracy is below target with Q² = $(Q²).")
     else
-        println("Computation reached targen accuracy with Q² = $(Q²) and max degree $p")
+        println("Computation reached target accuracy with Q² = $(Q²) and max degree $p")
     end
 
     return Ap, p, Q², R²
 end
 
-function testFun(deg, modelFun)
+function testFun(modelFun, deg, range; sampleSize = deg *2)
     op = GaussOrthoPoly(deg)
 
-    sampleSize = deg * 2 # TODO: How to determine?
     X = sampleMeasure(sampleSize, op)
     println("X: ", X)
     Y = modelFun.(X) # This is the most expensive part
@@ -272,7 +264,7 @@ function testFun(deg, modelFun)
     
     # Comparison to full basis with max degree 4
     # Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in 0:deg]
-    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in 0:0]
+    Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in range]
     println("Φ:", Φ)
     pce = leastSquares(Φ, Y)
     println("pce: ", pce)
