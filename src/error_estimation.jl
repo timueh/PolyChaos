@@ -1,4 +1,5 @@
-import Statistics: var
+export empError, 
+       looError
 
 # Normalized empirical error (generalization error)
 # Following Blatman2009 (Dissertation)
@@ -34,6 +35,7 @@ end
 
 
 # Leave-one-out cross-validation error
+# Following Blatman2009 (Dissertation)
 function looError(Y::Vector{Float64}, Φ::Matrix{Float64}, pceCoeffs)
     @assert length(Y) > 0           "Empty results vector Y"
     @assert length(Y) == size(Φ, 1) "Inconsistent number of elements."
