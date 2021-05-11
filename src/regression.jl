@@ -1,5 +1,3 @@
-using LinearAlgebra #TODO: thin out dependency, move to Package file
-
 export leastSquares
 
 

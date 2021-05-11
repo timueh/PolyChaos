@@ -3,7 +3,7 @@ __precompile__()
 module PolyChaos
 
 using SpecialFunctions, SparseArrays, Distributions
-import LinearAlgebra: I, dot, SymTridiagonal, eigen, issymmetric, pinv
+import LinearAlgebra: I, dot, SymTridiagonal, eigen, issymmetric, pinv, cond
 import FFTW: ifft
 import Combinatorics: with_replacement_combinations
 import Base: show
@@ -30,8 +30,8 @@ include("polynomial_chaos.jl")
 
 # Currently under development
 include("regression.jl")
-# include("adaptive_base.jl")
 include("error_estimation.jl")
+# include("adaptive_basis.jl")
 
 
 end
