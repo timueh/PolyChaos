@@ -2,7 +2,6 @@ using PolyChaos
 using LinearAlgebra
 using Distributions
 
-include("../src/error_estimation.jl")
 
 ## This is an example on the usage of PolyChaos for non-intrusive PCE using
 ## the projection and the regression approach and a comarison of them.
@@ -75,17 +74,13 @@ println()
 
 # Validation of PCE model
 println("Comapre coefficients analytic <-> regression:")
-println(norm(y_ana - y_reg[1], Inf))
-println(norm(y_ana - y_reg[2], Inf))
+println(norm(y_ana - y_reg, Inf))
 
 # genError = empError(Y, Φ, y_reg)
 # println("Determination coefficient R² (normalized empicial error): ", 1 - genError)
 
-ϵLoo1 = looError(Y, Φ, y_reg[1])
-ϵLoo2 = looError(Y, Φ, y_reg[2])
-println("Leave-one-out error: ", ϵLoo)
-println("Determination coefficient Q² (leave-one-out error): ", 1- ϵLoo1)
-println("Determination coefficient Q² (leave-one-out error): ", 1- ϵLoo2)
+ϵLoo = looError(Y, Φ, y_reg)
+println("Determination coefficient Q² (leave-one-out error): ", 1- ϵLoo)
 println()
 
 
@@ -125,4 +120,4 @@ std_reg = std(y_reg, op)
 error_mean_reg = abs(mean_ana - mean_reg)
 error_std_reg = abs(std_ana - std_reg)
 println("\t\t\t error reg, mean: \t $(error_mean_reg)")
-println("\t\t\t error reg, std: \t $(error_std_reg)")adad*
+println("\t\t\t error reg, std: \t $(error_std_reg)")
