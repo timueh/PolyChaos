@@ -105,7 +105,9 @@ end
 # Define the model
 μ = 0
 σ = 1
-model(x) = exp.(μ + σ * x)
+# model(x) = exp.(μ + σ * x)
+model(x) = x^7 - 21 * x^5 + 105 * x^3 - 105 * x + x^3 - 3 * x + 1
+# model(x) = x^3 - 3 * x
 
 # Function handle for basis generation
 op(deg) = GaussOrthoPoly(deg, Nrec = deg * 2)
@@ -126,7 +128,7 @@ olsModel = OLSModel(op1, model)
 # Compute a sparse basis for the provided pce model and parameters
 # Parameters:
 #   * op: The full candidate orthogonal basis
-function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax = 10, jMax = 5)
+function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99999, pMax = 10, jMax = 5)
     # Parameter specification
     pMax = min(op.deg, pMax)    # pMax can be at most size of given full basis
     COND = 1e4                  # Maximum allowed matrix condition number (see Blatman2010)
@@ -139,9 +141,10 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
     Ap = [0]
     R² = 0 
     Q² = 0
+    pce = []
 
     # 1. Build initial ED, calc Y
-    sampleSize = pMax * 2 # TODO: How to determine?
+    sampleSize = pMax * 20 # TODO: How to determine?
     X = sampleMeasure(sampleSize, op)
     Y = modelFun.(X) # This is the most expensive part
     
@@ -184,7 +187,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                     # Compute accuracy gain. If high enough, add cadidate polynomial
                     ΔR² = R²new - R²
                     # println("Gain ΔR²: ", ΔR²)
-                    if ΔR² ≥ ϵ
+                    if ΔR² > ϵ
                         J = J ∪ a
                     end
                 end
@@ -215,9 +218,11 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                 
                 # Backward step: Remove candidate polynomials one by one and compute the effect on Q²
                 if !restart 
+                    println("Ap_new: ", Ap_new)
                     Del = [] # polynomials to be discarded
                     for a in Ap_new
                         A = filter(e->e≠a,Ap_new)
+                        println("A = ", A)
                         # New candiadte basis -> compute new determination coefficients
                         Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in A]
                         pce = leastSquares(Φ, Y)
@@ -226,7 +231,8 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                         # If decrease in accuracy is too small, throw polynomial away
                         ΔR² = R² - R²new
                         if ΔR² ≤ ϵ
-                            Del ∪ a
+                            Del = Del ∪ a
+                            println("throw away a = ", a)
                         end
                     end
 
@@ -234,6 +240,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
                     Ap = filter(e->e∉Del, Ap_new)
                     Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap]
                     pce = leastSquares(Φ, Y)
+                    println("pce: ", pce)
                     R² = 1 - empError(Y, Φ, pce)
                     Q² = 1 - looError(Y, Φ, pce)
                     println("Q² (p=$p, j=$j): ", Q²)
@@ -251,7 +258,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99, pMax
         println("Computation reached target accuracy with Q² = $(Q²) and max degree $p")
     end
 
-    return Ap, p, Q², R²
+    return pce, Ap, p, Q², R²
 end
 
 function testFun(modelFun, deg, range; sampleSize = deg *2)
