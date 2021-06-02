@@ -20,7 +20,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 [compat]
 AdaptiveRejectionSampling = "0.1"
 Combinatorics = "1.0"
-Distributions = "0.23, 0.24"
+Distributions = "0.23, 0.24, 0.25"
 FFTW = "1.2"
 GaussQuadrature = "0.5"
 QuadGK = "2.4"
