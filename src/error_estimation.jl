@@ -64,6 +64,8 @@ function looError(Y::Vector{Float64}, Φ::Matrix{Float64}, pceCoeffs)
     # Normalize error with variance. Set error to 0, if var is 0
     looError = varY == 0 ? 0 : loo / varY
 
+    # TODO: adjusted Error computation
+
     # Return loo error. Return Inf, if it is NaN. Can happen for underdetermined problems.
     return isnan(looError) ? Inf : looError
 end

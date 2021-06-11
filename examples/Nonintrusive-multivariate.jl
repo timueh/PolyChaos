@@ -68,7 +68,6 @@ println(y_intr)
 
 
 # ------- Regression -------
-include("../src/regression.jl")
 println("\t == Regression approach ==")
 
 # FUTURE: Perform truncation somehow
@@ -110,7 +109,7 @@ println("\t == Regression approach ==")
 
 
 # ------- Comparison of moments -------
-println("\nComparison of moments to analytic solution")
+println("\nComparison of moments to analytic solution:")
 
 # Analytic moments for y
 mean_ana = k
@@ -126,13 +125,13 @@ function skew(y)
 end
 
 # Intrusive PCE moments
+println("= Error Intrusive PCE vs Analytic=")
 mean_intr = mean(y_intr, mop)
 std_intr  = std(y_intr, mop)
 skew_intr = skew(y_intr)
 error_mean_intr = abs(mean_ana - mean_intr)
 error_std_intr  = abs(std_ana - std_intr)
 error_skew_intr = abs(skew_ana - skew_intr)
-println("= Error Intrusive PCE vs Analytic")
 println("\t\t\t error mean: \t $(error_mean_intr)")
 println("\t\t\t error std: \t $(error_std_intr)")
 println("\t\t\t error skew: \t $(error_skew_intr)\n")
@@ -160,3 +159,20 @@ println("\t\t\t error skew: \t $(error_skew_intr)\n")
 # error_std_reg = abs(std_ana - std_reg)
 # println("\t\t\t error reg, mean: \t $(error_mean_reg)")
 # println("\t\t\t error reg, std: \t $(error_std_reg)")
+
+
+# ------- Plotting of PDF -------
+using Plots
+Nsmpl = 10000
+ξ = sampleMeasure(Nsmpl, mop)
+
+import SpecialFunctions: gamma
+# analytic pdf
+ρ(t) = 1  / (2^(0.5*k) * gamma(.5*k)) * t^(.5*k-1) * exp(-.5*t)
+
+### Intrusive PCE ###
+samp_intr = evaluatePCE(y_intr, ξ, mop)
+histogram(samp_intr; normalize=true, xlabel="t", ylabel="ρ(t)")
+# Analytic comparison 
+t = range(.1; stop=maximum(samp_intr), length=100)
+plot!(t, ρ.(t), w=4)
