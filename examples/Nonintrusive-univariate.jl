@@ -4,7 +4,7 @@ using Distributions
 
 
 ## This is an example on the usage of PolyChaos for non-intrusive PCE using
-## the projection and the regression approach and a comarison of them.
+## the projection and the regression approach and a comarison of them in the univariate setting.
 ## f = e^x, x ~ N(1, 0.1)
 
 μ, σ = 1, 0.1
