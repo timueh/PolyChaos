@@ -105,9 +105,12 @@ end
 # Define the model
 μ = 0
 σ = 1
-# model(x) = exp.(μ + σ * x)
-model(x) = x^7 - 21 * x^5 + 105 * x^3 - 105 * x + x^3 - 3 * x + 1
-# model(x) = x^3 - 3 * x
+# model(x) = exp(μ + σ * x)
+# model(x) = x^7 - 21 * x^5 + 105 * x^3 - 105 * x + x^4 - 6 * x^2 + 3
+# model(x) = x^4 - 3* x^2 
+# model(x) = x^10 - 45 * x^8 + 630 * x^6 - 3150 * x^4 + 4725 * x^2 - 945
+model(x) = 0
+
 
 # Function handle for basis generation
 op(deg) = GaussOrthoPoly(deg, Nrec = deg * 2)
@@ -135,20 +138,18 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99999, p
     α = 0.001                   # Tuning parameter (see Blatman2010)
     ϵ = α * (1 - Q²tgt)         # Error threshold of coefficients
 
-
     # Initilaize basis and determination coefficients
-    p = 0
-    Ap = [0]
-    R² = 0 
-    Q² = 0
-    pce = []
+    p = 0       # current degree
+    Ap = [0]    # set of basis indices for current degree
+    R² = 0.0    # coefficient of determination
+    Q² = 0.0    # leave-one out coefficient determination 
+    pce = []    # pce coefficients
 
-    # 1. Build initial ED, calc Y
+    # 1. Build initial ED, compute Y
     sampleSize = pMax * 20 # TODO: How to determine?
     X = sampleMeasure(sampleSize, op)
     Y = modelFun.(X) # This is the most expensive part
     
-
     restart = true
     # Outer loop: Iterate on experimental design
     while restart
@@ -171,7 +172,8 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99999, p
             j = 0   # number of allowed interactions
             
             # Iterate number of interactions j
-            while Q² ≤ Q²tgt && j < jMax # For univariate bases this loop does nothing
+            jM = min(p, jMax) # p limits #interactions
+            while Q² ≤ Q²tgt && j < jM
                 j += 1
                 J = [] # Temporary store potential new basis elements
                 candidates = [p] # FUTURE: this needs to capture all current multi indices. ALso need to change from indices to objects (?)
@@ -186,7 +188,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99999, p
 
                     # Compute accuracy gain. If high enough, add cadidate polynomial
                     ΔR² = R²new - R²
-                    # println("Gain ΔR²: ", ΔR²)
+                    # println("ΔR²: $ΔR² \t ϵ: $ϵ")
                     if ΔR² > ϵ
                         J = J ∪ a
                     end
@@ -204,10 +206,11 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99999, p
                 if cond(Φ) > COND 
                     # Increase experimental design and restart computations
                     restart = true
-                    sampleSize *= 2 # TODO: build properly
+                    k = 3 # rescale factor according to Blatman
+                    println("Moments matrix is ill-conditioned. Restart computation with new sample size: $(k * length(Ap_new)) (Old size: $sampleSize)")
+                    sampleSize = k * length(Ap_new)  # TODO: build properly
                     X = sampleMeasure(sampleSize, op)
                     Y = modelFun.(X) # TODO: Reuse old ED data, this part is very expensive!
-                    println("Moments matrix is ill-conditioned. Restart computation with new sample size: $sampleSize")
                 else
                 #     # If conditioning is okay, update accuracy R² for backward step
                     # Φ = [ evaluate(j, X[i], op) for i = 1:sampleSize, j in Ap_new]
@@ -247,7 +250,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99999, p
                 end
 
             end
-    
+            println()
         end
     
     end
@@ -258,7 +261,7 @@ function sparsePCE(op::AbstractOrthoPoly, modelFun::Function; Q²tgt = .99999, p
         println("Computation reached target accuracy with Q² = $(Q²) and max degree $p")
     end
 
-    return pce, Ap, p, Q², R²
+    return pce, Ap, p, R², Q²
 end
 
 function testFun(modelFun, deg, range; sampleSize = deg *2)
